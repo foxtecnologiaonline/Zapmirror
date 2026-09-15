@@ -1,0 +1,16 @@
+{
+  "name": "zapmirror",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @zapmirror/database build && concurrently -n API,DESKTOP -c cyan,yellow \"pnpm --filter @zapmirror/api dev\" \"pnpm --filter @zapmirror/desktop dev\"",
+    "build": "pnpm --filter @zapmirror/database build && pnpm --filter @zapmirror/api build && pnpm --filter @zapmirror/desktop build",
+    "db:generate": "cd packages/database && npx prisma generate",
+    "db:migrate": "cd packages/database && npx prisma migrate dev",
+    "db:migrate:prod": "cd packages/database && npx prisma migrate deploy"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}

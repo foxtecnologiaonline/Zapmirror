@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  licenses     License[]
+  instances    MirrorInstance[]
+}
+
+// Uma licença = direito de usar o app desktop. v1: sem planos, todo usuário
+// ativo tem no máximo 1 licença "trial" ou "active" — estender pra tiers
+// quando o pricing for decidido.
+model License {
+  id        String   @id @default(cuid())
+  userId    String
+  status    String   @default("trial") // trial | active | expired | revoked
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// 1 instância Evolution API própria do ZapMirror por usuário/número.
+// Vive na mesma Evolution API do servidor Vultr do ZapScript, mas com
+// nome/credenciais isolados (prefixo "zapmirror-") e sem relação com as
+// contas/entitlements do ZapScript.
+model MirrorInstance {
+  id                String   @id @default(cuid())
+  userId            String
+  instanceName      String   @unique // ex: zapmirror-<userId>
+  evolutionApiKey   String   // API key da instância na Evolution (armazenar cifrado)
+  status            String   @default("pending") // pending | connected | disconnected | error
+  phoneNumber       String?
+  qrCode            String?  // último QR code emitido, efêmero
+  lastConnectedAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  devices           MirrorDevice[]
+
+  @@index([userId])
+}
+
+// 1 sessão de espelhamento ADB (celular físico conectado ao app desktop).
+// Independente da MirrorInstance — um usuário pode espelhar o celular sem
+// ter conectado o WhatsApp ainda, e vice-versa.
+model MirrorDevice {
+  id               String    @id @default(cuid())
+  userId           String
+  mirrorInstanceId String?
+  adbSerial        String    // identificador do adb devices (USB) ou ip:porta (Wi-Fi)
+  label            String?   // nome amigável escolhido pelo usuário
+  connectionType   String    @default("usb") // usb | wifi
+  lastSeenAt       DateTime?
+  createdAt        DateTime  @default(now())
+  mirrorInstance   MirrorInstance? @relation(fields: [mirrorInstanceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}

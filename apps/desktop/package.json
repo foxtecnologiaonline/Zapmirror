@@ -1,0 +1,29 @@
+{
+  "name": "@zapmirror/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "main": "dist/main/index.js",
+  "scripts": {
+    "copy:assets": "node -e \"require('fs').mkdirSync('dist/renderer',{recursive:true});require('fs').cpSync('src/renderer/index.html','dist/renderer/index.html')\"",
+    "dev": "tsc -p tsconfig.json && npm run copy:assets && electron dist/main/index.js",
+    "build": "tsc -p tsconfig.json && npm run copy:assets && electron-builder"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.5"
+  },
+  "build": {
+    "appId": "me.zapscript.zapmirror",
+    "productName": "ZapMirror",
+    "files": ["dist/**/*"],
+    "extraResources": [{ "from": "resources/platform-tools", "to": "platform-tools" }],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
