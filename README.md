@@ -41,10 +41,13 @@ pnpm dev
 
 ## Estado atual (honesto)
 
-- `apps/api`: rotas de auth/licença/instância Evolution escritas, **não
-  testadas contra um Postgres real nem contra a Evolution API de verdade**.
-- `apps/desktop`: scaffold Electron funcional (janela, IPC, detecção de
-  dispositivo via `adb devices`) — **o pipeline de vídeo/input (a parte que
-  realmente espelha a tela) ainda não está implementado**, ver
-  `apps/desktop/src/main/videoPipeline.ts`. Só dá para validar isso rodando
-  no Windows com um Android físico conectado.
+- `apps/api`: auth, licença e provisionamento de instância **validados de
+  ponta a ponta** contra Postgres real e um mock da Evolution API
+  (`scripts/mock-evolution.mjs`) — ver `ESCOPO_ZAPMIRROR.md` §5 para o que foi
+  testado e os bugs já corrigidos. **Ainda não testado contra a Evolution de
+  verdade do Vultr** (bloqueado por `ESCOPO_ZAPMIRROR.md` §4).
+- `apps/desktop`: compila limpo e sobe sem crash (smoke test headless) —
+  **o pipeline de vídeo/input (a parte que realmente espelha a tela) ainda
+  não está implementado**, ver `apps/desktop/src/main/videoPipeline.ts`, e
+  a detecção de dispositivo via `adb devices` nunca rodou contra hardware
+  real. Só dá para validar isso no Windows com um Android físico conectado.

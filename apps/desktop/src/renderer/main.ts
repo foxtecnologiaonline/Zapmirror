@@ -1,4 +1,8 @@
-// Tipagem do bridge exposto em preload/index.ts
+// Tipagem do bridge exposto em preload/index.ts. O `export {}` é só pra
+// forçar o TS a tratar este arquivo como módulo — sem isso, `declare global`
+// não tem efeito e `window.zapmirror` fica implicitamente `any` (TS2669).
+export {};
+
 declare global {
   interface Window {
     zapmirror: {

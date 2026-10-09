@@ -99,13 +99,33 @@ o código está escrito e é o próximo passo assim que esses dados chegarem.
 
 ## 5. Estado real do código (nada de fingir que está pronto)
 
+**Atualizado em 2026-10-09** — primeira rodada de validação de verdade (não só
+"compila"), feita neste sandbox contra Postgres local e um mock da Evolution
+API (`scripts/mock-evolution.mjs`, não é a Evolution real do Vultr):
+
 | Camada | Estado |
 |---|---|
-| `apps/api` — auth, licença, rotas de instância | Escrito, roteável, **não testado** contra Postgres real nem contra a Evolution real (bloqueado por §4) |
-| `packages/database` — schema Prisma | Escrito, migration nunca rodada |
-| `apps/desktop` — janela Electron, IPC, `adb devices` | Escrito; **detecção de dispositivo é a única parte testável sem infraestrutura nova** (só precisa de `adb.exe` + um Android conectado) |
-| `apps/desktop` — pipeline de vídeo/input (`videoPipeline.ts`) | **Não implementado.** É a camada de maior risco técnico (ver `ESCOPO_ESPELHAMENTO.md` §6.1 do repo zapscript) — decidido deixar como stub pra não travar o resto do scaffold |
+| `packages/database` — schema Prisma | **Migrado com sucesso contra Postgres real** (`prisma migrate dev`, migration `20261009013621_init` committada) |
+| `apps/api` — auth, licença, rotas de instância | **Rodou de ponta a ponta** contra Postgres real + mock da Evolution: registro, login (certo e errado), token ausente, licença trial, criar instância, QR code, status, e-mail duplicado — todos com o status HTTP esperado. Dois bugs reais encontrados e corrigidos nessa rodada: faltava carregar `.env` (adicionado `dotenv`) e erro de validação (zod) sem handler devolvia 500 em vez de 400 (adicionado `setErrorHandler`). **Ainda não testado contra a Evolution de verdade** — isso continua bloqueado pelo §4 |
+| `apps/desktop` — `tsc` (typecheck) | Compila limpo. Um bug real corrigido: `declare global` em `renderer/main.ts` não tinha efeito sem `export {}`, o que deixava `window.zapmirror` como `any` |
+| `apps/desktop` — smoke test do processo Electron | Sobe sem crash em Xvfb headless (erros de dbus/GPU no log são ruído do container, não da app) — mas isso **não** valida UI, ADB real ou o fluxo completo, só que o processo principal não quebra ao iniciar |
+| `apps/desktop` — `adb devices` | **Ainda não testado com hardware real.** O parsing do código bate com o formato conhecido de `adb devices -l`, mas nunca rodou contra um `adb.exe` de verdade nem um Android físico — só dá pra confirmar isso no Windows do usuário |
+| `apps/desktop` — pipeline de vídeo/input (`videoPipeline.ts`) | **Não implementado.** Continua stub — é a camada de maior risco técnico (ver `ESCOPO_ESPELHAMENTO.md` §6.1 do repo zapscript) |
 | Empacotamento/instalador Windows, code signing | Não iniciado |
+
+Setup usado para essa validação (reproduzível, não fica no repo como
+dependência — `.env` segue fora do git):
+
+```bash
+# Postgres local + usuário/banco "zapmirror"
+pnpm install
+cp apps/api/.env.example apps/api/.env   # ajustar DATABASE_URL pro Postgres local
+                                          # e EVOLUTION_API_URL=http://localhost:3200
+node scripts/mock-evolution.mjs &        # mock da Evolution, só pra dev/smoke test
+pnpm --filter @zapmirror/database build
+cd packages/database && npx prisma migrate dev && cd ../..
+pnpm --filter @zapmirror/api build && node apps/api/dist/index.js
+```
 
 **Isto continua sendo um sandbox Linux sem tela, sem USB e sem Android
 físico.** Dá pra escrever e revisar todo o TypeScript aqui, mas rodar
