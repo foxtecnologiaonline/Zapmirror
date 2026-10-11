@@ -65,3 +65,12 @@ antes de rodar — ver o README ali.
   bloqueado na política de rede daqui) nem testado contra um Android físico
   — isso só dá pra validar no Windows do usuário, com `npm run
   fetch-scrcpy-server` rodado lá.
+- **Revisão adicional (mesma sessão):** confirmei com um teste isolado que
+  `Uint8Array`/`bigint` sobrevivem ao IPC do Electron intactos (a premissa
+  por trás do encaminhamento de frames main→renderer). Corrigi dois bugs
+  reais encontrados na releitura: `startMirrorSession` podia deixar o
+  processo scrcpy-server "pendurado" no aparelho se `videoStream`/`controller`
+  viessem vazios depois do `client.start()` ter sucesso (faltava
+  `client.close()` nesse caminho de erro); e um clique em "Espelhar" que
+  falhasse (ex.: sem `server.bin`) ficava preso em "Conectando..." pra
+  sempre, sem feedback — faltava `try/catch` em volta do `startMirror`.

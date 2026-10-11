@@ -105,8 +105,13 @@ async function startMirroring(serial: string) {
   });
 
   mirrorEl.classList.add('active');
-  await window.zapmirror.startMirror(serial);
-  canvas.focus();
+  try {
+    await window.zapmirror.startMirror(serial);
+    canvas.focus();
+  } catch (err) {
+    statusEl.textContent = `Falha ao espelhar ${serial}: ${err instanceof Error ? err.message : String(err)}`;
+    console.error('[mirror] startMirror falhou:', err);
+  }
 }
 
 function videoCoordsFromEvent(event: MouseEvent): { x: number; y: number } {

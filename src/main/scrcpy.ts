@@ -79,34 +79,52 @@ export async function startMirrorSession(
 
   const client = await AdbScrcpyClient.start(adb, DefaultServerPath, options);
 
-  const videoStream = await client.videoStream;
-  if (!videoStream) {
-    throw new Error('Servidor scrcpy não abriu stream de vídeo (video:true foi ignorado?)');
-  }
-
-  const codec = videoStream.metadata.codec;
-  videoStream.sizeChanged(({ width, height }) => onSizeChanged({ width, height, codec }));
-  onSizeChanged({ width: videoStream.width, height: videoStream.height, codec });
-
-  // Loop assíncrono: encaminha cada pacote H.264 (configuração ou dados) pro
-  // chamador (que por sua vez manda pro renderer via IPC). Precisa rodar em
-  // segundo plano sem bloquear — por isso não é `await`ado aqui.
-  void (async () => {
-    try {
-      for await (const packet of videoStream.stream) {
-        onFrame(packet);
-      }
-    } catch (err) {
-      // Stream fechado ao desconectar é esperado; qualquer outro erro é real.
-      console.error('[scrcpy] stream de vídeo terminou com erro', err);
+  // Dali pra frente, qualquer falha precisa fechar o `client` antes de
+  // propagar o erro — sem isso o scrcpy-server fica rodando "pendurado" no
+  // aparelho (processo + conexão ADB abertos) mesmo com a sessão abortada
+  // aqui no app. `client.start()` já teve sucesso nesse ponto, então o
+  // processo no device já existe.
+  try {
+    const videoStream = await client.videoStream;
+    if (!videoStream) {
+      throw new Error('Servidor scrcpy não abriu stream de vídeo (video:true foi ignorado?)');
     }
-  })();
 
-  const controller = client.controller;
-  if (!controller) {
-    throw new Error('Servidor scrcpy não abriu o canal de controle (control:true foi ignorado?)');
+    const controller = client.controller;
+    if (!controller) {
+      throw new Error('Servidor scrcpy não abriu o canal de controle (control:true foi ignorado?)');
+    }
+
+    const codec = videoStream.metadata.codec;
+    videoStream.sizeChanged(({ width, height }) => onSizeChanged({ width, height, codec }));
+    onSizeChanged({ width: videoStream.width, height: videoStream.height, codec });
+
+    // Loop assíncrono: encaminha cada pacote H.264 (configuração ou dados)
+    // pro chamador (que por sua vez manda pro renderer via IPC). Precisa
+    // rodar em segundo plano sem bloquear — por isso não é `await`ado aqui.
+    void (async () => {
+      try {
+        for await (const packet of videoStream.stream) {
+          onFrame(packet);
+        }
+      } catch (err) {
+        // Stream fechado ao desconectar é esperado; qualquer outro erro é real.
+        console.error('[scrcpy] stream de vídeo terminou com erro', err);
+      }
+    })();
+
+    return buildSession(serial, client, controller);
+  } catch (err) {
+    await client.close();
+    throw err;
   }
+}
 
+function buildSession(
+  serial: string,
+  client: AdbScrcpyClient<AdbScrcpyOptionsLatest<true>>,
+  controller: NonNullable<AdbScrcpyClient<AdbScrcpyOptionsLatest<true>>['controller']>,
+): MirrorSession {
   return {
     serial,
     async close() {

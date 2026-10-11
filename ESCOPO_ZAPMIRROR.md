@@ -75,7 +75,21 @@ execução real:
 | Build (`tsc` puro → `esbuild`) | **Bug real encontrado e corrigido.** Os pacotes `@yume-chan/*` são ESM-only; `tsc` com `module: commonjs` gerava `require(...)` pra eles, que quebrava com `ERR_REQUIRE_ESM` no processo principal — e no renderer nem chegava a esse erro, porque `require` não existe lá (`nodeIntegration: false`). Troquei a emissão por `esbuild` (`scripts/build.mjs`), que bundla certo pros três alvos (main/preload = Node+CJS, renderer = browser+IIFE); `tsc --noEmit` continua rodando só pra checar tipos |
 | `src/main/scrcpy.ts` (sessão de espelhamento: push server, `AdbScrcpyClient.start`, vídeo, `injectTouch`/`injectKeyCode`) | **Escrito e type-checked, não validado em execução.** Precisa de `resources/scrcpy/server.bin` (não baixado aqui — GitHub bloqueado na política de rede deste sandbox) e de um Android físico. É o próximo a testar |
 | `src/renderer/main.ts` (lista de dispositivos, canvas, `WebCodecsVideoDecoder` + `WebGLVideoFrameRenderer`, captura de mouse/teclado) | **Escrito e type-checked, não validado em execução** — depende do mesmo que o item acima |
+| Transferência `Uint8Array`/`bigint` via IPC (frames de vídeo main→renderer) | **Verificado isoladamente.** Testei com uma janela Electron mínima, fora do app: `Uint8Array` e `bigint` chegam intactos do lado do preload (`instanceof Uint8Array` = true, `typeof` = `bigint`). Confirma a premissa de `onFrame`/`mirror:frame`, que até esta revisão era suposição não testada |
 | Empacotamento Windows, code signing | Não iniciado |
+
+**Dois bugs reais encontrados nesta revisão e corrigidos** (releitura crítica de `src/main/scrcpy.ts` e `src/renderer/main.ts`, sem precisar de hardware pra achá-los):
+
+- `startMirrorSession` podia deixar o scrcpy-server "pendurado" no aparelho:
+  se `client.videoStream`/`client.controller` vinham vazios depois de
+  `AdbScrcpyClient.start()` já ter tido sucesso, o código lançava erro sem
+  chamar `client.close()` — processo no device + conexão ADB ficavam
+  abertos. Corrigido com `try/catch` fechando o client em qualquer falha
+  depois do `start()`.
+- Um clique em "Espelhar" que falhasse (ex.: `server.bin` ausente) ficava
+  preso em "Conectando..." pra sempre — `await window.zapmirror.startMirror()`
+  não tinha `try/catch`, então a falha virava rejeição não tratada no
+  clique. Agora mostra o erro no status e libera a UI pra tentar de novo.
 
 ## 5. O que falta para o MVP, em ordem de dependência
 
