@@ -7,5 +7,3 @@ release/
 !.env.example
 *.log
 .DS_Store
-packages/database/prisma/migrations/dev/
-.turbo/

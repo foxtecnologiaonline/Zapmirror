@@ -1,150 +1,83 @@
 # ZapMirror — Escopo
 
-- **Data:** 2026-09-15
-- **Status:** scaffold inicial no ar (código real, não roda de ponta a ponta ainda — ver §5).
-- **Origem:** produto derivado do escopo "Espelhamento de Celular no Windows"
-  originalmente analisado dentro do repo `zapscript`
-  (`ESCOPO_ESPELHAMENTO.md` lá — histórico da análise de mercado e da revisão
-  técnica inicial vive nesse documento, vale ler antes deste).
-- **Decisão que mudou desde aquela análise:** em vez de módulo dentro do
-  ZapScript, o usuário decidiu que este é um **produto e repositório
-  separados** — marca própria (ZapMirror), banco de dados próprio, billing
-  próprio — reaproveitando **só** a Evolution API que já roda no servidor
-  Vultr do ZapScript, como infraestrutura de terceiro.
+- **Atualizado em:** 2026-10-11
+- **Status:** scaffold Electron no ar, compila e sobe sem crash — o core
+  (vídeo/input) ainda não está implementado.
+- **Decisão de escopo (2026-10-11):** o projeto foi **reduzido a só isto**:
+  espelhar e controlar um Android no Windows via ADB. Sem backend, sem conta
+  de usuário, sem licenciamento, sem integração com WhatsApp/Evolution API.
+  Essas camadas existiram numa versão anterior deste repo (auth, licença,
+  instância própria na Evolution compartilhada do ZapScript) e foram
+  removidas — ver `git log` antes deste commit se precisar recuperar algo.
+- **Análise de mercado/viabilidade original:** vive no repo `zapscript`,
+  `ESCOPO_ESPELHAMENTO.md` — concorrência (scrcpy, Vysor, ApowerMirror,
+  AirDroid), por que só Android é viável, e por que o diferencial via
+  WhatsApp foi deixado de lado por enquanto. Vale ler antes de reconsiderar
+  adicionar de volta qualquer coisa que não seja ADB puro.
 
 ---
 
 ## 1. O que é
 
-Duas metades que se encontram só no usuário final:
+Um app desktop Windows (Electron) que espelha a tela de um Android e deixa
+controlar com mouse e teclado, via ADB — o mesmo mecanismo do scrcpy. Roda
+100% local, sem servidor, sem conta.
 
-1. **App desktop Windows** (`apps/desktop`, Electron) — espelha e controla um
-   Android via ADB, o mesmo mecanismo do scrcpy. Roda 100% local no PC do
-   usuário depois de instalado.
-2. **Instância WhatsApp própria** (`apps/api` + Evolution API compartilhada)
-   — cada usuário do ZapMirror ganha sua própria instância/sessão WhatsApp na
-   Evolution API do servidor Vultr do ZapScript, isolada por nome
-   (`zapmirror-<userId>`). É o que sustenta o diferencial identificado na
-   análise original: abrir o WhatsApp do celular espelhado pra fazer o que o
-   WhatsApp Web não permite, com o próprio ZapMirror também sabendo o estado
-   da conexão (conectado/QR pendente) pela Evolution.
+Sem diferencial de produto além de UX — isso é uma decisão consciente: a
+prioridade agora é confirmar que o pipeline de vídeo/input funciona com
+latência aceitável, antes de investir em qualquer coisa além disso (ver
+`ESCOPO_ESPELHAMENTO.md` §0 do repo zapscript — é exatamente o "spike técnico
+isolado" recomendado ali).
 
-O `apps/api` deste repo **não é** o backend do ZapScript — é um backend novo,
-pequeno, só com o necessário para: autenticar usuário do ZapMirror, checar
-licença, e provisionar/gerenciar a instância Evolution de cada um.
-
----
-
-## 2. Por que a Evolution é compartilhada, mas o resto não é
-
-- **Evolution API** já roda no servidor Vultr, testada em produção,
-  suporta múltiplas instâncias nomeadas — criar uma instância nova por
-  usuário do ZapMirror ali é reaproveitamento de infraestrutura real, sem
-  subir um segundo servidor Evolution do zero.
-- **Banco de dados, auth, billing, usuários** são do ZapMirror, não do
-  ZapScript — os dois produtos não compartilham conta de usuário nem
-  cobrança. Um usuário pode ter ZapScript, ZapMirror, os dois, ou nenhum.
-- **Isolamento:** toda instância criada pelo ZapMirror carrega o prefixo
-  `zapmirror-` (ver `EVOLUTION_INSTANCE_PREFIX` em `apps/api/.env.example`) —
-  nunca lê, escreve ou lista instâncias de usuários do ZapScript. Do ponto de
-  vista da Evolution API, o ZapMirror é só mais um tenant entre vários.
-
----
-
-## 3. Arquitetura implementada no scaffold
+## 2. Estrutura
 
 ```
-apps/desktop (Electron)                    apps/api (Fastify)
-  ├─ main/adb.ts            ADB local        ├─ routes/auth.ts          cadastro/login
-  ├─ main/videoPipeline.ts  [FALTA, ver §5]   ├─ routes/license.ts       status de licença
-  ├─ main/license.ts    ───────────────────► ├─ routes/evolutionInstance.ts
-  ├─ preload/index.ts       bridge IPC       │     └─ lib/evolutionClient.ts ──► Evolution API
-  └─ renderer/               UI básica       │                                  (Vultr, compartilhada)
-                                              └─ packages/database (Prisma, banco próprio)
+src/
+├── main/
+│   ├── index.ts         janela Electron, IPC
+│   ├── adb.ts            wrapper real: listDevices, forward, push
+│   └── videoPipeline.ts  FALTA — ver §4
+├── preload/index.ts       bridge contextIsolation
+└── renderer/              UI (hoje: só lista dispositivos)
 ```
 
-Modelo de dados (`packages/database/prisma/schema.prisma`): `User`,
-`License` (trial/active/expired/revoked — sem tiers ainda, ver §6),
-`MirrorInstance` (1 por usuário, aponta pra Evolution) e `MirrorDevice` (1
-por celular físico já pareado via ADB).
+## 3. Estado real do código
 
----
-
-## 4. O que falta confirmar com quem administra o Vultr — bloqueante
-
-O sandbox onde isto foi escrito **não tem acesso SSH ao servidor** (mesma
-limitação de rede já registrada no `CLAUDE.md` do repo `zapscript`), então o
-seguinte não pôde ser verificado e está assumido em `apps/api/.env.example`:
-
-1. **A rota de gerência da Evolution (`POST /instance/create` etc.) está
-   exposta publicamente** em `https://api.zapscript.me`, ou só na rede
-   interna do Docker Compose do servidor? Se só interna, o `apps/api` do
-   ZapMirror não pode rodar em outro host/servidor — precisa rodar no mesmo
-   Vultr (novo container no mesmo `docker-compose.zapscript.yml`, ou um
-   compose próprio na mesma máquina) ou atrás de um proxy dedicado que o
-   administrador do servidor precisa criar.
-2. **API key global da Evolution** com permissão de criar instância — precisa
-   ser gerada/cedida por quem administra o servidor (vive no `.env` do
-   servidor, conforme o `CLAUDE.md` do zapscript: `ENCRYPTION_KEY`,
-   `JWT_SECRET` etc. também vivem lá, não em variável de CI).
-3. **Limite de instâncias simultâneas** que o servidor Vultr aguenta — a
-   Evolution do ZapScript já roda a carga de produção do ZapScript; cada
-   usuário novo do ZapMirror é mais uma sessão WhatsApp (Baileys) competindo
-   por CPU/RAM no mesmo container. Vale medir antes de abrir cadastro aberto.
-
-Sem resposta a (1) e (2), `apps/api` não sobe de verdade contra a Evolution —
-o código está escrito e é o próximo passo assim que esses dados chegarem.
-
----
-
-## 5. Estado real do código (nada de fingir que está pronto)
-
-**Atualizado em 2026-10-09** — primeira rodada de validação de verdade (não só
-"compila"), feita neste sandbox contra Postgres local e um mock da Evolution
-API (`scripts/mock-evolution.mjs`, não é a Evolution real do Vultr):
-
-| Camada | Estado |
+| Item | Estado |
 |---|---|
-| `packages/database` — schema Prisma | **Migrado com sucesso contra Postgres real** (`prisma migrate dev`, migration `20261009013621_init` committada) |
-| `apps/api` — auth, licença, rotas de instância | **Rodou de ponta a ponta** contra Postgres real + mock da Evolution: registro, login (certo e errado), token ausente, licença trial, criar instância, QR code, status, e-mail duplicado — todos com o status HTTP esperado. Dois bugs reais encontrados e corrigidos nessa rodada: faltava carregar `.env` (adicionado `dotenv`) e erro de validação (zod) sem handler devolvia 500 em vez de 400 (adicionado `setErrorHandler`). **Ainda não testado contra a Evolution de verdade** — isso continua bloqueado pelo §4 |
-| `apps/desktop` — `tsc` (typecheck) | Compila limpo. Um bug real corrigido: `declare global` em `renderer/main.ts` não tinha efeito sem `export {}`, o que deixava `window.zapmirror` como `any` |
-| `apps/desktop` — smoke test do processo Electron | Sobe sem crash em Xvfb headless (erros de dbus/GPU no log são ruído do container, não da app) — mas isso **não** valida UI, ADB real ou o fluxo completo, só que o processo principal não quebra ao iniciar |
-| `apps/desktop` — `adb devices` | **Ainda não testado com hardware real.** O parsing do código bate com o formato conhecido de `adb devices -l`, mas nunca rodou contra um `adb.exe` de verdade nem um Android físico — só dá pra confirmar isso no Windows do usuário |
-| `apps/desktop` — pipeline de vídeo/input (`videoPipeline.ts`) | **Não implementado.** Continua stub — é a camada de maior risco técnico (ver `ESCOPO_ESPELHAMENTO.md` §6.1 do repo zapscript) |
-| Empacotamento/instalador Windows, code signing | Não iniciado |
+| `tsc` (typecheck) | Compila limpo |
+| Processo Electron | Sobe sem crash (smoke test headless, Xvfb) — não valida UI nem ADB real |
+| `adb.ts` — `listDevices`, `connectWifi`, `forwardScrcpyPort`, `pushScrcpyServer` | Escrito, **nunca rodou contra hardware real** |
+| `videoPipeline.ts` | **Não implementado** — é o core do produto, ver §4 |
+| UI | Só lista dispositivos; falta a janela de espelhamento (vídeo + clique/tecla) e o print |
+| Empacotamento Windows, code signing | Não iniciado |
 
-Setup usado para essa validação (reproduzível, não fica no repo como
-dependência — `.env` segue fora do git):
+## 4. O que falta para o MVP, em ordem de dependência
 
-```bash
-# Postgres local + usuário/banco "zapmirror"
-pnpm install
-cp apps/api/.env.example apps/api/.env   # ajustar DATABASE_URL pro Postgres local
-                                          # e EVOLUTION_API_URL=http://localhost:3200
-node scripts/mock-evolution.mjs &        # mock da Evolution, só pra dev/smoke test
-pnpm --filter @zapmirror/database build
-cd packages/database && npx prisma migrate dev && cd ../..
-pnpm --filter @zapmirror/api build && node apps/api/dist/index.js
-```
+1. **`adb.exe`** (Android Platform Tools, Apache-2.0) em
+   `resources/platform-tools/` — não versionado, baixar à parte.
+2. **Validar `listDevices()` com hardware real** — só dá pra fazer no
+   Windows do usuário com um Android conectado (autorizando "Depuração USB"
+   no aparelho). Impossível neste sandbox (Linux, sem USB/tela).
+3. **Pipeline de vídeo/input (`videoPipeline.ts`)** — o que falta de fato:
+   - Embarcar `scrcpy-server.jar` (Apache-2.0, extraído de uma release do
+     github.com/Genymobile/scrcpy).
+   - `adb push` do jar + `adb shell app_process` pra rodar no aparelho.
+   - Abrir o socket local (`forwardScrcpyPort`) e ler os frames H.264.
+   - Decodificar H.264 no renderer (WebCodecs API do Chromium embutido, ou
+     módulo nativo) e desenhar num `<canvas>`.
+   - Traduzir clique/tecla do Electron pro protocolo de input do scrcpy, no
+     mesmo socket.
+4. **UI de espelhamento de verdade** — janela com o vídeo + captura de
+   clique/tecla + botão de print.
+5. **Empacotamento** — instalador Windows (`electron-builder`, já
+   configurado em `package.json`, nunca rodado) + certificado de code
+   signing.
 
-**Isto continua sendo um sandbox Linux sem tela, sem USB e sem Android
-físico.** Dá pra escrever e revisar todo o TypeScript aqui, mas rodar
-`pnpm dev` em `apps/desktop` de verdade — e principalmente validar o
-pipeline de vídeo do item acima — só é possível no Windows do usuário com um
-celular conectado.
+Recorte de MVP (do `ESCOPO_ESPELHAMENTO.md` §2 original, ainda vale): **1
+celular, 1 janela, USB, controle ativo, print.** Wi-Fi, múltiplos aparelhos e
+gravação ficam para depois de confirmar que o pipeline de vídeo é viável.
 
----
-
-## 6. Próximos passos, em ordem
-
-1. **Resolver o §4** (acesso à Evolution) — sem isso, `apps/api` fica
-   escrito mas mudo.
-2. **Rodar `apps/desktop` localmente no Windows** com `adb.exe` baixado e um
-   Android conectado — validar que `listDevices()` encontra o aparelho e que
-   o fluxo de autorização de depuração USB aparece como esperado.
-3. **Implementar `videoPipeline.ts`** — o spike técnico isolado já
-   recomendado: embarcar `scrcpy-server`, decodificar H.264, medir latência.
-   Só faz sentido continuar no restante do produto se este passo confirmar
-   viabilidade.
-4. Licenciamento real (tiers, pagamento) — hoje `License.status` só tem
-   `trial`, suficiente pra dev, não pra cobrar de ninguém.
+O item 3 é o único que decide se o produto existe. Tudo antes dele (1, 2) é
+só o que falta pra conseguir testar o item 3; tudo depois (4, 5) só importa
+se o item 3 funcionar com latência aceitável.

@@ -2,24 +2,25 @@
   "name": "zapmirror",
   "version": "0.0.1",
   "private": true,
+  "main": "dist/main/index.js",
   "scripts": {
-    "dev": "pnpm --filter @zapmirror/database build && concurrently -n API,DESKTOP -c cyan,yellow \"pnpm --filter @zapmirror/api dev\" \"pnpm --filter @zapmirror/desktop dev\"",
-    "build": "pnpm --filter @zapmirror/database build && pnpm --filter @zapmirror/api build && pnpm --filter @zapmirror/desktop build",
-    "db:generate": "cd packages/database && npx prisma generate",
-    "db:migrate": "cd packages/database && npx prisma migrate dev",
-    "db:migrate:prod": "cd packages/database && npx prisma migrate deploy"
+    "copy:assets": "node -e \"require('fs').mkdirSync('dist/renderer',{recursive:true});require('fs').cpSync('src/renderer/index.html','dist/renderer/index.html')\"",
+    "dev": "tsc -p tsconfig.json && npm run copy:assets && electron dist/main/index.js",
+    "build": "tsc -p tsconfig.json && npm run copy:assets && electron-builder"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
+    "@types/node": "^20.14.9",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
     "typescript": "^5.4.5"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "electron",
-      "esbuild",
-      "prisma"
-    ]
+  "build": {
+    "appId": "me.zapscript.zapmirror",
+    "productName": "ZapMirror",
+    "files": ["dist/**/*"],
+    "extraResources": [{ "from": "resources/platform-tools", "to": "platform-tools" }],
+    "win": {
+      "target": "nsis"
+    }
   }
 }
