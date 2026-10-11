@@ -7,3 +7,6 @@ release/
 !.env.example
 *.log
 .DS_Store
+resources/platform-tools/*.exe
+resources/platform-tools/adb
+resources/scrcpy/*.bin

@@ -4,21 +4,44 @@
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {
-    "copy:assets": "node -e \"require('fs').mkdirSync('dist/renderer',{recursive:true});require('fs').cpSync('src/renderer/index.html','dist/renderer/index.html')\"",
-    "dev": "tsc -p tsconfig.json && npm run copy:assets && electron dist/main/index.js",
-    "build": "tsc -p tsconfig.json && npm run copy:assets && electron-builder"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "bundle": "node scripts/build.mjs",
+    "dev": "npm run typecheck && npm run bundle && electron dist/main/index.js",
+    "build": "npm run typecheck && npm run bundle && electron-builder",
+    "fetch-scrcpy-server": "node scripts/fetch-scrcpy-server.mjs"
+  },
+  "dependencies": {
+    "@yume-chan/adb": "^2.6.4",
+    "@yume-chan/adb-scrcpy": "^2.3.2",
+    "@yume-chan/adb-server-node-tcp": "^2.5.2",
+    "@yume-chan/scrcpy": "^2.3.0",
+    "@yume-chan/scrcpy-decoder-webcodecs": "^2.5.3",
+    "@yume-chan/stream-extra": "^2.6.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",
+    "@yume-chan/fetch-scrcpy-server": "^1.0.0",
     "electron": "^31.3.0",
     "electron-builder": "^24.13.3",
+    "esbuild": "^0.28.2",
     "typescript": "^5.4.5"
   },
   "build": {
     "appId": "me.zapscript.zapmirror",
     "productName": "ZapMirror",
-    "files": ["dist/**/*"],
-    "extraResources": [{ "from": "resources/platform-tools", "to": "platform-tools" }],
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/platform-tools",
+        "to": "platform-tools"
+      },
+      {
+        "from": "resources/scrcpy",
+        "to": "scrcpy"
+      }
+    ],
     "win": {
       "target": "nsis"
     }
