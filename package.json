@@ -1,6 +1,8 @@
 {
   "name": "zapmirror",
   "version": "0.0.1",
+  "description": "Espelhamento e controle de Android no Windows via ADB",
+  "author": "ZapMirror",
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {

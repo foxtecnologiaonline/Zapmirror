@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import path from 'node:path';
 import { app } from 'electron';
 import type { Adb } from '@yume-chan/adb';
-import { AdbScrcpyClient, AdbScrcpyOptionsLatest } from '@yume-chan/adb-scrcpy';
+import { AdbScrcpyClient, AdbScrcpyOptions2_5 } from '@yume-chan/adb-scrcpy';
 import {
   AndroidKeyCode,
   AndroidKeyEventAction,
@@ -25,11 +25,17 @@ import { getAdb } from './adb';
 // scrcpy inteiro (@yume-chan/scrcpy, @yume-chan/adb-scrcpy) e o decoder
 // WebCodecs do lado do renderer (@yume-chan/scrcpy-decoder-webcodecs).
 //
-// O que AINDA não está validado: isto nunca rodou contra um scrcpy-server
-// real nem um Android físico (sem hardware neste sandbox). O binário do
-// servidor também não está no repo — rode `npm run fetch-scrcpy-server` (no
-// SEU computador, não aqui: baixa do GitHub, bloqueado neste sandbox) antes
-// de testar.
+// Versão alvo: scrcpy-server 2.5 (`AdbScrcpyOptions2_5`), pinado pra bater
+// exatamente com o binário real commitado em `resources/scrcpy/server.bin`
+// — ver resources/scrcpy/README.md pra proveniência e licença. Cliente e
+// servidor do scrcpy precisam estar na MESMA versão; se trocar o binário
+// (ex. via `npm run fetch-scrcpy-server`, que pega a versão mais nova do
+// GitHub), troque também `AdbScrcpyOptions2_5` aqui pela classe de versão
+// correspondente em `@yume-chan/adb-scrcpy`.
+//
+// O que AINDA não está validado: isto nunca rodou contra um Android físico
+// (sem hardware neste sandbox) — o protocolo ADB (adb.ts) já foi validado de
+// verdade, mas o pipeline de vídeo/input em si, não.
 
 function resolveServerBinPath(): string {
   const base = app.isPackaged
@@ -71,7 +77,7 @@ export async function startMirrorSession(
   >[1];
   await AdbScrcpyClient.pushServer(adb, serverStream);
 
-  const options = new AdbScrcpyOptionsLatest({
+  const options = new AdbScrcpyOptions2_5({
     video: true,
     audio: false,
     control: true,
@@ -122,8 +128,8 @@ export async function startMirrorSession(
 
 function buildSession(
   serial: string,
-  client: AdbScrcpyClient<AdbScrcpyOptionsLatest<true>>,
-  controller: NonNullable<AdbScrcpyClient<AdbScrcpyOptionsLatest<true>>['controller']>,
+  client: AdbScrcpyClient<AdbScrcpyOptions2_5<true>>,
+  controller: NonNullable<AdbScrcpyClient<AdbScrcpyOptions2_5<true>>['controller']>,
 ): MirrorSession {
   return {
     serial,

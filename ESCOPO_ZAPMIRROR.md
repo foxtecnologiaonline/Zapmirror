@@ -1,9 +1,12 @@
 # ZapMirror — Escopo
 
-- **Atualizado em:** 2026-10-11
+- **Atualizado em:** 2026-10-12
 - **Status:** ADB real validado de ponta a ponta neste sandbox (protocolo,
-  não hardware). Sessão de espelhamento (scrcpy) escrita, mas sem validar
-  contra servidor/dispositivo reais — ver §3.
+  não hardware). Binários (`adb.exe`, `server.bin`) já versionados no repo,
+  com proveniência e licença documentadas. Instalador Windows gerado e
+  validado estruturalmente (via Wine neste sandbox). O que falta é só o que
+  nenhum sandbox resolve: rodar contra um Android físico num Windows real
+  — ver §5.
 - **Decisão de escopo (2026-10-11):** o projeto é **só isto**: espelhar e
   controlar um Android no Windows via ADB. Sem backend, sem conta de
   usuário, sem licenciamento, sem integração com WhatsApp/Evolution API —
@@ -60,7 +63,10 @@ src/
 └── renderer/           lista de dispositivos + canvas de espelhamento + input
 scripts/
 ├── build.mjs                  bundler (esbuild) — ver §5
-└── fetch-scrcpy-server.mjs    baixa resources/scrcpy/server.bin (rodar localmente)
+└── fetch-scrcpy-server.mjs    troca resources/scrcpy/server.bin por outra versão (opcional)
+resources/
+├── platform-tools/            adb.exe + DLLs, versionados — ver README ali (proveniência/licença)
+└── scrcpy/                     server.bin (scrcpy-server 2.5), versionado — ver README ali
 ```
 
 ## 4. Estado real do código — o que foi validado nesta sessão e como
@@ -73,12 +79,14 @@ execução real:
 | `src/main/adb.ts` (`AdbServerClient` via `@yume-chan/adb` + `@yume-chan/adb-server-node-tcp`) | **Validado de verdade.** Instalei `adb` real via apt neste sandbox (não tem Windows aqui, mas o protocolo ADB client↔server é o mesmo), rodei o app e, fora do Electron também, um script direto: `client.getVersion()` → `41`, `client.getDevices()` → `[]` (sem Android físico, mas round-trip completo do protocolo, idêntico ao `adb devices -l` nativo) |
 | `src/main/index.ts` — graceful degradation | **Bug real encontrado e corrigido.** Antes desta rodada, se `ensureAdbServerStarted()` falhasse (ex.: `adb` ausente), a `Promise` rejeitava sem `.catch()` e `createWindow()` nunca era chamado — o app ficava vivo sem abrir janela nenhuma, sem erro visível. Agora falha é logada e a janela abre mesmo assim; `devices:list` reporta o erro de forma tratada na UI |
 | Build (`tsc` puro → `esbuild`) | **Bug real encontrado e corrigido.** Os pacotes `@yume-chan/*` são ESM-only; `tsc` com `module: commonjs` gerava `require(...)` pra eles, que quebrava com `ERR_REQUIRE_ESM` no processo principal — e no renderer nem chegava a esse erro, porque `require` não existe lá (`nodeIntegration: false`). Troquei a emissão por `esbuild` (`scripts/build.mjs`), que bundla certo pros três alvos (main/preload = Node+CJS, renderer = browser+IIFE); `tsc --noEmit` continua rodando só pra checar tipos |
-| `src/main/scrcpy.ts` (sessão de espelhamento: push server, `AdbScrcpyClient.start`, vídeo, `injectTouch`/`injectKeyCode`) | **Escrito e type-checked, não validado em execução.** Precisa de `resources/scrcpy/server.bin` (não baixado aqui — GitHub bloqueado na política de rede deste sandbox) e de um Android físico. É o próximo a testar |
+| `src/main/scrcpy.ts` (sessão de espelhamento: push server, `AdbScrcpyClient.start`, vídeo, `injectTouch`/`injectKeyCode`) | **Escrito e type-checked, não validado em execução contra hardware.** Usa `AdbScrcpyOptions2_5`, pinado pra bater com `resources/scrcpy/server.bin` (ver abaixo) |
 | `src/renderer/main.ts` (lista de dispositivos, canvas, `WebCodecsVideoDecoder` + `WebGLVideoFrameRenderer`, captura de mouse/teclado) | **Escrito e type-checked, não validado em execução** — depende do mesmo que o item acima |
-| Transferência `Uint8Array`/`bigint` via IPC (frames de vídeo main→renderer) | **Verificado isoladamente.** Testei com uma janela Electron mínima, fora do app: `Uint8Array` e `bigint` chegam intactos do lado do preload (`instanceof Uint8Array` = true, `typeof` = `bigint`). Confirma a premissa de `onFrame`/`mirror:frame`, que até esta revisão era suposição não testada |
-| Empacotamento Windows, code signing | Não iniciado |
+| Transferência `Uint8Array`/`bigint` via IPC (frames de vídeo main→renderer) | **Verificado isoladamente.** Testei com uma janela Electron mínima, fora do app: `Uint8Array` e `bigint` chegam intactos do lado do preload. Confirma a premissa de `onFrame`/`mirror:frame` |
+| **Binários (`adb.exe`, `server.bin`)** | **Resolvidos e versionados no repo**, sem precisar do usuário baixar nada. `dl.google.com` e `github.com` (releases) estão bloqueados pra mim neste sandbox, mas o npm registry não — extraí `adb.exe`+DLLs do pacote `android-tools-bin@2.0.1` (Apache-2.0, confirmado via `NOTICE.txt` embutido) e `scrcpy-server` do pacote `@scrcpy-installer/win32-x64@1.0.1` (só esse arquivo, confirmado como build genuíno da Genymobile pelas classes `com.genymobile.scrcpy.*` internas — Apache-2.0, apesar do pacote-wrapper se declarar "Proprietary" no nível do npm). Proveniência completa nos READMEs de `resources/platform-tools/` e `resources/scrcpy/` |
+| **Versão do scrcpy-server encontrada: 2.5** (não a "latest" que a lib usa por padrão) — `scrcpy.ts` foi ajustado de `AdbScrcpyOptionsLatest` pra `AdbScrcpyOptions2_5` pra bater exatamente. `scripts/fetch-scrcpy-server.mjs` virou opcional (trocar de versão sob demanda) em vez de obrigatório no primeiro setup — e agora exige a versão como argumento explícito, pra nunca mais baixar uma versão desalinhada da classe de opções em uso |
+| **Empacotamento Windows** | **Instalador NSIS gerado com sucesso** (`npm run build`, `electron-builder` + Wine, cross-compilado neste sandbox Linux) — `dist/ZapMirror Setup 0.0.1.exe`, com `adb.exe`/`server.bin` corretamente dentro de `resources/` no pacote. **Não valida**: se o instalador roda num Windows de verdade, nem o espelhamento em si. Code signing: não feito (sem certificado) |
 
-**Dois bugs reais encontrados nesta revisão e corrigidos** (releitura crítica de `src/main/scrcpy.ts` e `src/renderer/main.ts`, sem precisar de hardware pra achá-los):
+**Dois bugs reais encontrados numa revisão anterior e corrigidos** (releitura crítica de `src/main/scrcpy.ts` e `src/renderer/main.ts`, sem precisar de hardware pra achá-los):
 
 - `startMirrorSession` podia deixar o scrcpy-server "pendurado" no aparelho:
   se `client.videoStream`/`client.controller` vinham vazios depois de
@@ -91,31 +99,28 @@ execução real:
   não tinha `try/catch`, então a falha virava rejeição não tratada no
   clique. Agora mostra o erro no status e libera a UI pra tentar de novo.
 
-## 5. O que falta para o MVP, em ordem de dependência
+## 5. O que falta — só o que nenhum sandbox resolve
 
-1. **`resources/scrcpy/server.bin`** — rodar `npm run fetch-scrcpy-server`
-   **no computador do usuário** (baixa do GitHub). O script lê a versão
-   exigida direto da biblioteca instalada, então não tem como baixar a
-   versão errada.
-2. **`adb` real em `resources/platform-tools/`** — no Windows, é o
-   `adb.exe` do Android Platform Tools. Aqui no sandbox eu usei o pacote
-   `android-tools-adb` do apt só pra validar o protocolo (§4) — isso não
-   serve pra produção, é Linux, não Windows.
-3. **Testar com Android físico + Windows** — conectar o celular, autorizar
-   "Depuração USB", clicar "Espelhar" na UI, confirmar que o vídeo aparece e
-   que clique/tecla chegam no aparelho. Impossível neste sandbox (sem
-   USB/tela/Windows) — só o usuário consegue.
-4. **UI mínima faltando:** botão de print (captura de frame atual) — o
+Com os binários versionados e o instalador gerando certo, sobra exatamente
+uma coisa que decide se o produto existe de verdade:
+
+1. **Testar com Android físico + Windows real** — instalar o
+   `ZapMirror Setup 0.0.1.exe`, conectar o celular, autorizar "Depuração
+   USB", clicar "Espelhar" na UI, confirmar que o vídeo aparece e que
+   clique/tecla chegam no aparelho. **Impossível neste sandbox** (sem
+   USB/tela/Windows real — Wine chegou a rodar o instalador, mas emulação
+   de driver USB pra um Android físico não é algo em que confiar). Só o
+   usuário consegue fazer isso.
+
+Depois que isso funcionar (ou revelar o que precisa ajustar):
+
+2. **UI mínima faltando:** botão de print (captura de frame atual) — o
    resto da UI básica (lista de dispositivos, canvas de vídeo, input) já
    está escrito.
-5. **Empacotamento** — instalador Windows (`electron-builder`, já
-   configurado em `package.json`, nunca rodado) + certificado de code
-   signing.
+3. **Code signing** — certificado de assinatura de código pra Windows não
+   bloquear/assustar o usuário no primeiro uso (custo recorrente, decisão
+   do dono do produto, não técnica).
 
 Recorte de MVP (ainda vale): **1 celular, 1 janela, USB, controle ativo,
 print.** Wi-Fi, múltiplos aparelhos e gravação ficam para depois de
-confirmar que o item 3 funciona com latência aceitável.
-
-O item 3 é o que decide se o produto existe de verdade — tudo antes dele (1,
-2) só existe pra conseguir chegar lá; tudo depois (4, 5) só importa se ele
-funcionar bem.
+confirmar que o item 1 funciona com latência aceitável.

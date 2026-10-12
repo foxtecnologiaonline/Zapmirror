@@ -22,11 +22,17 @@ zapmirror/
 │   └── renderer/          → UI: lista de dispositivos + canvas de espelhamento
 ├── scripts/
 │   ├── build.mjs                 → bundler (esbuild) — ver §"Build" abaixo
-│   └── fetch-scrcpy-server.mjs   → baixa o binário do servidor (rodar localmente)
+│   └── fetch-scrcpy-server.mjs   → baixa uma versão mais nova do servidor (opcional, ver nota de versão abaixo)
 └── resources/
-    ├── platform-tools/  → coloque o adb aqui (ver README ali)
-    └── scrcpy/            → `npm run fetch-scrcpy-server` baixa o server.bin aqui
+    ├── platform-tools/  → adb.exe + DLLs, já versionados (ver README ali)
+    └── scrcpy/            → server.bin, já versionado (ver README ali)
 ```
+
+**Os binários necessários já estão no repo** — `adb.exe` (+ DLLs) e
+`server.bin` (scrcpy-server 2.5) vêm versionados em `resources/`. Não é
+preciso baixar nada pra rodar `npm install && npm run dev` ou
+`npm run build`. Ver os READMEs em cada pasta de `resources/` para a
+proveniência exata e a licença de cada binário.
 
 ## Build
 
@@ -37,16 +43,24 @@ tem `require`, já que `nodeIntegration` está desligado). Por isso o build
 real é `esbuild` (`scripts/build.mjs`), que bundla tudo certo pra cada
 processo; `tsc --noEmit` continua rodando antes, só pra checagem de tipos.
 
-## Setup local
+## Setup local (dev)
 
 ```bash
 npm install
-npm run fetch-scrcpy-server   # baixa resources/scrcpy/server.bin (precisa de acesso ao GitHub)
 npm run dev
 ```
 
-Precisa do `adb` (Android Platform Tools) em `resources/platform-tools/`
-antes de rodar — ver o README ali.
+## Gerar o instalador Windows
+
+```bash
+npm run build
+```
+
+Produz `dist/ZapMirror Setup <versão>.exe` (NSIS) — **já testado neste
+sandbox** (via `electron-builder` + Wine, cross-compilando de Linux):
+o instalador é gerado com sucesso e os binários de `resources/` são
+empacotados corretamente dentro dele. Não precisa de Windows pra gerar o
+instalador — só pra rodá-lo de verdade.
 
 ## Estado atual (honesto)
 
@@ -58,19 +72,21 @@ antes de rodar — ver o README ali.
   crash num smoke test headless, com e sem o binário `adb` presente — sem
   ele, degrada graciosamente em vez de travar sem abrir janela (bug real que
   apareceu e foi corrigido durante essa validação).
+- **Empacotamento Windows validado estruturalmente:** `npm run build`
+  (`electron-builder`, Wine) gera o instalador NSIS com sucesso, com
+  `adb.exe`/`server.bin` corretamente dentro de `resources/` no pacote. O
+  que isso **não** valida: se o instalador instala e roda certo num Windows
+  de verdade, nem se o espelhamento funciona contra um Android físico.
 - **Escrito, mas sem validação com hardware real:** `src/main/scrcpy.ts` (a
   sessão de espelhamento — push do servidor, vídeo, input) e o decoder no
-  renderer (`@yume-chan/scrcpy-decoder-webcodecs`). O binário
-  `resources/scrcpy/server.bin` nunca foi baixado neste sandbox (GitHub
-  bloqueado na política de rede daqui) nem testado contra um Android físico
-  — isso só dá pra validar no Windows do usuário, com `npm run
-  fetch-scrcpy-server` rodado lá.
-- **Revisão adicional (mesma sessão):** confirmei com um teste isolado que
-  `Uint8Array`/`bigint` sobrevivem ao IPC do Electron intactos (a premissa
-  por trás do encaminhamento de frames main→renderer). Corrigi dois bugs
-  reais encontrados na releitura: `startMirrorSession` podia deixar o
-  processo scrcpy-server "pendurado" no aparelho se `videoStream`/`controller`
-  viessem vazios depois do `client.start()` ter sucesso (faltava
-  `client.close()` nesse caminho de erro); e um clique em "Espelhar" que
-  falhasse (ex.: sem `server.bin`) ficava preso em "Conectando..." pra
-  sempre, sem feedback — faltava `try/catch` em volta do `startMirror`.
+  renderer (`@yume-chan/scrcpy-decoder-webcodecs`). O `server.bin` já está
+  no repo (scrcpy-server 2.5, ver `resources/scrcpy/README.md`), mas nunca
+  foi testado contra um Android físico — isso só dá pra validar no Windows
+  do usuário, instalando o app e conectando um celular.
+- **Revisão de código (sessão anterior):** confirmei com um teste isolado
+  que `Uint8Array`/`bigint` sobrevivem ao IPC do Electron intactos (a
+  premissa por trás do encaminhamento de frames main→renderer). Corrigidos
+  2 bugs reais: `startMirrorSession` podia deixar o processo scrcpy-server
+  "pendurado" no aparelho se `videoStream`/`controller` viessem vazios
+  depois do `client.start()` ter sucesso; e um clique em "Espelhar" que
+  falhasse ficava preso em "Conectando..." pra sempre, sem feedback.

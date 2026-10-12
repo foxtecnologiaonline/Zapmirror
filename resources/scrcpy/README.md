@@ -1,11 +1,25 @@
 # resources/scrcpy
 
-Roda `npm run fetch-scrcpy-server` (no seu computador — baixa do GitHub, que
-está bloqueado no sandbox onde este projeto foi desenvolvido) para colocar
-`server.bin` aqui. A versão baixada é lida automaticamente da biblioteca
-`@yume-chan/adb-scrcpy` instalada, então vai sempre bater com o protocolo que
-`src/main/scrcpy.ts` espera — não escolha a versão à mão.
+`server.bin` está versionado neste diretório — **scrcpy-server 2.5**
+(Genymobile, Apache-2.0), verificado por conter as classes
+`com.genymobile.scrcpy.*` reais do projeto upstream
+(github.com/Genymobile/scrcpy).
 
-Não versionar o binário neste repo (`.gitignore` já cobre `*.bin` aqui); o
-`electron-builder` empacota este diretório via `extraResources` em
-`package.json`.
+**Proveniência:** o GitHub (de onde `scripts/fetch-scrcpy-server.mjs` baixa
+normalmente) está bloqueado na política de rede do sandbox onde este projeto
+foi escrito. O binário aqui veio extraído do pacote npm
+`@scrcpy-installer/win32-x64@1.0.1` — **só o arquivo `scrcpy-server` foi
+extraído e commitado**, nenhum outro conteúdo desse pacote (que embute um
+bundle inteiro do Android SDK e se declara "Proprietary" no nível do pacote
+— mas o `scrcpy-server` em si é inequivocamente o build oficial Apache-2.0
+da Genymobile, confirmado pelas classes internas).
+
+**Versão importa:** `src/main/scrcpy.ts` usa `AdbScrcpyOptions2_5` (não
+`AdbScrcpyOptionsLatest`) exatamente porque este binário é a versão 2.5 —
+cliente e servidor do scrcpy precisam estar na mesma versão. Se trocar este
+arquivo por uma versão mais nova (ex. rodando
+`npm run fetch-scrcpy-server` no seu computador, que pega a última versão
+do GitHub), **troque também** a classe de opções em `scrcpy.ts` pela
+correspondente em `@yume-chan/adb-scrcpy` (ex. `AdbScrcpyOptionsLatest`).
+
+Empacotado via `extraResources` em `package.json`.

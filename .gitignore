@@ -7,6 +7,8 @@ release/
 !.env.example
 *.log
 .DS_Store
-resources/platform-tools/*.exe
+
+# adb.exe/server.bin SÃO versionados de propósito (ver READMEs nessas
+# pastas) - só ignorar o binário Linux que uso pra validar localmente no
+# sandbox, que não serve pra produção (alvo é Windows).
 resources/platform-tools/adb
-resources/scrcpy/*.bin
