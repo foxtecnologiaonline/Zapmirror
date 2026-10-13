@@ -84,7 +84,7 @@ execução real:
 | Transferência `Uint8Array`/`bigint` via IPC (frames de vídeo main→renderer) | **Verificado isoladamente.** Testei com uma janela Electron mínima, fora do app: `Uint8Array` e `bigint` chegam intactos do lado do preload. Confirma a premissa de `onFrame`/`mirror:frame` |
 | **Binários (`adb.exe`, `server.bin`)** | **Resolvidos e versionados no repo**, sem precisar do usuário baixar nada. `dl.google.com` e `github.com` (releases) estão bloqueados pra mim neste sandbox, mas o npm registry não — extraí `adb.exe`+DLLs do pacote `android-tools-bin@2.0.1` (Apache-2.0, confirmado via `NOTICE.txt` embutido) e `scrcpy-server` do pacote `@scrcpy-installer/win32-x64@1.0.1` (só esse arquivo, confirmado como build genuíno da Genymobile pelas classes `com.genymobile.scrcpy.*` internas — Apache-2.0, apesar do pacote-wrapper se declarar "Proprietary" no nível do npm). Proveniência completa nos READMEs de `resources/platform-tools/` e `resources/scrcpy/` |
 | **Versão do scrcpy-server encontrada: 2.5** (não a "latest" que a lib usa por padrão) — `scrcpy.ts` foi ajustado de `AdbScrcpyOptionsLatest` pra `AdbScrcpyOptions2_5` pra bater exatamente. `scripts/fetch-scrcpy-server.mjs` virou opcional (trocar de versão sob demanda) em vez de obrigatório no primeiro setup — e agora exige a versão como argumento explícito, pra nunca mais baixar uma versão desalinhada da classe de opções em uso |
-| **Empacotamento Windows** | **Instalador NSIS gerado com sucesso** (`npm run build`, `electron-builder` + Wine, cross-compilado neste sandbox Linux) — `dist/ZapMirror Setup 0.0.1.exe`, com `adb.exe`/`server.bin` corretamente dentro de `resources/` no pacote. **Não valida**: se o instalador roda num Windows de verdade, nem o espelhamento em si. Code signing: não feito (sem certificado) |
+| **Empacotamento Windows** | **NSIS + portable gerados com sucesso** (`npm run build`, `electron-builder` + Wine, cross-compilado neste sandbox Linux) — `release/ZapMirror Setup 0.0.1.exe` (instalador) e `release/ZapMirror 0.0.1.exe` (roda direto, sem instalar), ~77MB cada, `adb.exe`/`server.bin` corretamente dentro de `resources/`. Achei e corrigi um bug real na primeira tentativa: `files: ["dist/**/*"]` colidia com a própria pasta `dist/` onde o build anterior ficava, empacotando recursivamente um build dentro do outro (166MB → 332MB entre builds) — mudei o output do electron-builder pra `release/` (separado do bundle do esbuild em `dist/`) e tirei `node_modules` do pacote (o esbuild já embute tudo, incluir de novo era 420MB de peso morto). **Não valida**: se roda num Windows de verdade, nem o espelhamento em si. Code signing: não feito (sem certificado) |
 
 **Dois bugs reais encontrados numa revisão anterior e corrigidos** (releitura crítica de `src/main/scrcpy.ts` e `src/renderer/main.ts`, sem precisar de hardware pra achá-los):
 
@@ -104,8 +104,9 @@ execução real:
 Com os binários versionados e o instalador gerando certo, sobra exatamente
 uma coisa que decide se o produto existe de verdade:
 
-1. **Testar com Android físico + Windows real** — instalar o
-   `ZapMirror Setup 0.0.1.exe`, conectar o celular, autorizar "Depuração
+1. **Testar com Android físico + Windows real** — rodar
+   `ZapMirror Setup 0.0.1.exe` (instalador) ou `ZapMirror 0.0.1.exe`
+   (portable, sem instalar), conectar o celular, autorizar "Depuração
    USB", clicar "Espelhar" na UI, confirmar que o vídeo aparece e que
    clique/tecla chegam no aparelho. **Impossível neste sandbox** (sem
    USB/tela/Windows real — Wine chegou a rodar o instalador, mas emulação

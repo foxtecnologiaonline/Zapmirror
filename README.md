@@ -50,17 +50,25 @@ npm install
 npm run dev
 ```
 
-## Gerar o instalador Windows
+## Gerar o build Windows
 
 ```bash
 npm run build
 ```
 
-Produz `dist/ZapMirror Setup <versão>.exe` (NSIS) — **já testado neste
-sandbox** (via `electron-builder` + Wine, cross-compilando de Linux):
-o instalador é gerado com sucesso e os binários de `resources/` são
-empacotados corretamente dentro dele. Não precisa de Windows pra gerar o
-instalador — só pra rodá-lo de verdade.
+Produz dois arquivos em `release/` (não `dist/` — esse é o bundle do
+esbuild, build Windows fica separado pra não se misturar):
+
+- `ZapMirror Setup <versão>.exe` — instalador NSIS tradicional (assistente,
+  Menu Iniciar, desinstalador).
+- `ZapMirror <versão>.exe` — **portable**: um único `.exe` que roda direto,
+  sem assistente de instalação, sem admin, sem gravar nada permanente no
+  sistema. Pra quem quer só rodar sem instalar.
+
+Ambos (~77 MB cada) **já testados neste sandbox** (via `electron-builder` +
+Wine, cross-compilando de Linux): geram com sucesso e os binários de
+`resources/` ficam corretamente empacotados dentro. Não precisa de Windows
+pra gerar — só pra rodar de verdade.
 
 ## Estado atual (honesto)
 
