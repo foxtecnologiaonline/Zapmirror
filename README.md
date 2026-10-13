@@ -65,10 +65,21 @@ esbuild, build Windows fica separado pra não se misturar):
   sem assistente de instalação, sem admin, sem gravar nada permanente no
   sistema. Pra quem quer só rodar sem instalar.
 
-Ambos (~77 MB cada) **já testados neste sandbox** (via `electron-builder` +
+Ambos (~73,6 MB cada) **já testados neste sandbox** (via `electron-builder` +
 Wine, cross-compilando de Linux): geram com sucesso e os binários de
 `resources/` ficam corretamente empacotados dentro. Não precisa de Windows
 pra gerar — só pra rodar de verdade.
+
+**Otimizações de tamanho aplicadas** (`compression: "maximum"` +
+`electronLanguages: ["en-US"]` no `package.json`): cortam os ~50 idiomas do
+Chromium que o app não usa (`locales/` caiu de 39 MB pra 460 KB) e usam
+compressão LZMA máxima no instalador/portable. **O que eu deliberadamente
+não toquei:** `d3dcompiler_47.dll`, `ffmpeg.dll`, `vk_swiftshader*` — são
+parte da engine de renderização/decodificação de vídeo do Chromium
+(WebGL + WebCodecs), exatamente o que este app usa pra decodificar e
+desenhar o espelhamento. Cortar esses arquivos economizaria uns 10-15 MB a
+mais, mas arriscaria quebrar a função principal do produto em máquinas sem
+aceleração de GPU — não vale a troca.
 
 ## Estado atual (honesto)
 

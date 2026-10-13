@@ -30,6 +30,8 @@
   "build": {
     "appId": "me.zapscript.zapmirror",
     "productName": "ZapMirror",
+    "compression": "maximum",
+    "electronLanguages": ["en-US"],
     "directories": {
       "output": "release"
     },
